@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>666help.simexe</title> <style>
+        /* 画面全体を覆うスタイル */
+        body {
+            margin: 0;
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden; /* スクロール禁止 */
+            user-select: none; /* テキスト選択禁止（没入感を高める） */
+        }
+        /* 動画を画面いっぱいに表示 */
+        #videoPlayer {
+            width: 100vw; 
+            height: 100vh; 
+            object-fit: contain; /* アスペクト比を維持して画面内に収める */
+            background-color: #000;
+        }
+        /* ロック中はすべての操作を無効化するオーバーレイ */
+        #lockOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1000; /* 動画よりも手前に配置 */
+            background-color: transparent; /* 再生成功後は透明のまま維持 */
+        }
+        /* 再生開始を促すメッセージ */
+        #message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff0000; /* 赤色で警告感を出す */
+            font-family: monospace;
+            padding: 15px 30px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #ff0000;
+            border-radius: 5px;
+            z-index: 1001;
+            display: block; /* 初期状態では表示 */
+            cursor: pointer; /* クリック可能であることを示す */
+            text-align: center;
+        }
+        /* Retire ボタン */
+        #retireButton {
+            display: none; /* 初期状態では非表示 */
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000; 
+            padding: 15px 40px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #fff;
+            background-color: #333;
+            border: 2px solid #fff;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #retireButton:hover {
+            background-color: #555;
+        }
+    </style>
+</head>
+<body>
+
+    <video id="videoPlayer" playsinline>
+        <source src="LINE_MOVIE_1762586513527.mp4" type="video/mp4">
+        お使いのブラウザは動画再生をサポートしていません。
+    </video>
+    
+    <div id="lockOverlay"></div>
+    
+    <div id="message">
+        <p style="margin: 0; font-size: 1.1em;">SYSTEM ALERT:</p>
+        <p style="margin: 5px 0 0; font-size: 0.9em;">TAP TO ACKNOWLEDGE AND RUN DIAGNOSTICS</p>
+    </div>
+
+    <button id="retireButton">RETIRE</button>
+
+    <script>
+        const video = document.getElementById('videoPlayer');
+        const lockOverlay = document.getElementById('lockOverlay');
+        const message = document.getElementById('message');
+        const retireButton = document.getElementById('retireButton');
+        
+        // 1. 再生ロックの開始 (ブラウザバックのブロック)
+        function lockScreen() {
+            // ブラウザバックを防ぐために履歴を偽装
+            history.pushState(null, null, location.href);
+            window.addEventListener('popstate', handlePopState);
+            // オーバーレイを表示してクリックなどを無効化
+            lockOverlay.style.pointerEvents = 'auto'; 
+        }
+
+        // 2. ブラウザバック操作の検知とキャンセル（ロック中のみ）
+        function handlePopState() {
+            // 再び偽装履歴を積むことで、「戻る」操作をキャンセル
+            history.pushState(null, null, location.href);
+            // 警告メッセージを表示（任意）
+            // alert("⚠️ WARNING: SYSTEM DIAGNOSTICS IN PROGRESS. DO NOT EXIT.");
+        }
+
+        // 3. 再生ロックの解除
+        function unlockScreen() {
+            // ブラウザバックのイベントリスナーを削除し、操作を元に戻す
+            window.removeEventListener('popstate', handlePopState);
+            // オーバーレイを無効化
+            lockOverlay.style.pointerEvents = 'none';
+            
+            // Retire ボタンを表示
+            retireButton.style.display = 'block';
+        }
+
+        // 4. Retire ボタンの機能: サイトから離脱（ブラウザバック）
+        retireButton.addEventListener('click', () => {
+            // ロックを完全に解除してから一つ前のページに戻る
+            history.back(); 
+            // window.close()も試したい場合は、上のhistory.back()をコメントアウトしてください
+            // window.close(); 
+        });
+
+        // 5. サイトに入った直後の処理（ユーザー操作を待つ）
+        lockScreen(); 
+
+        // ユーザーが画面上のメッセージをタップ/クリックしたら再生開始
+        message.addEventListener('click', function attemptPlay() {
+            // 自動再生の要件（ミュート解除）を満たしつつ、再生を試みる
+            video.muted = false; 
+            video.play()
+                .then(() => {
+                    // 再生成功: メッセージとクリックリスナーを削除
+                    message.style.display = 'none';
+                    message.removeEventListener('click', attemptPlay);
+                    // 動画が流れている間は、ブラウザバック以外の操作は可能にしておく（ロックオーバーレイは削除）
+                    lockOverlay.style.pointerEvents = 'none';
+                    console.log("動画再生開始。ロック中...");
+                })
+                .catch(error => {
+                    // 再生失敗: メッセージを表示したまま、再度クリックを待つ
+                    message.style.display = 'block';
+                    console.error("再生がブロックされました。再度タップが必要です。", error);
+                });
+        });
+
+        // 6. 再生終了イベント
+        video.addEventListener('ended', () => {
+            console.log("動画再生終了。ロック解除、Retireボタン表示。");
+            unlockScreen(); // 再生が終了したらロックを解除し、ボタンを表示
+        });
+        
+    </script>
+</body>
+</html>
